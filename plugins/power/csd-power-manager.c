@@ -115,9 +115,11 @@ static const gchar introspection_xml[] =
 "  <interface name='org.cinnamon.SettingsDaemon.Power.Screen'>"
 "    <method name='StepUp'>"
 "      <arg type='u' name='new_percentage' direction='out'/>"
+"      <arg type='i' name='output_id' direction='out'/>"
 "    </method>"
 "    <method name='StepDown'>"
 "      <arg type='u' name='new_percentage' direction='out'/>"
+"      <arg type='i' name='output_id' direction='out'/>"
 "    </method>"
 "    <method name='GetPercentage'>"
 "      <arg type='u' name='percentage' direction='out'/>"
@@ -254,6 +256,8 @@ static void      inhibit_lid_switch (CsdPowerManager *manager);
 static void      uninhibit_lid_switch (CsdPowerManager *manager);
 static void      lock_screensaver (CsdPowerManager *manager);
 static void      kill_lid_close_safety_timer (CsdPowerManager *manager);
+
+int             backlight_get_output_id (CsdPowerManager *manager);
 
 #if UP_CHECK_VERSION(0,99,0)
 static void device_properties_changed_cb (UpDevice *device, GParamSpec *pspec, CsdPowerManager *manager);
@@ -2694,6 +2698,28 @@ out:
         return ret;
 }
 
+int
+backlight_get_output_id (CsdPowerManager *manager)
+{
+        GnomeRROutput *output;
+        GnomeRRCrtc *crtc;
+        GdkScreen *gdk_screen;
+        gint x, y;
+
+        output = get_primary_output (manager);
+        if (output == NULL)
+                return -1;
+
+        crtc = gnome_rr_output_get_crtc (output);
+        if (crtc == NULL)
+                return -1;
+
+        gdk_screen = gdk_screen_get_default ();
+        gnome_rr_crtc_get_position (crtc, &x, &y);
+
+        return gdk_screen_get_monitor_at_point (gdk_screen, x, y);
+}
+
 static gint
 backlight_get_abs (CsdPowerManager *manager, GError **error)
 {
@@ -4585,8 +4611,9 @@ handle_method_call_screen (CsdPowerManager *manager,
                 g_error_free (error);
         } else {
                 g_dbus_method_invocation_return_value (invocation,
-                                                       g_variant_new ("(u)",
-                                                                      value));
+                                                       g_variant_new ("(ui)",
+                                                                      value,
+                                                                      backlight_get_output_id (manager)));
         }
 }
 
